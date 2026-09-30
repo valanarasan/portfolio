@@ -174,6 +174,29 @@ for (const viewport of [{ width: 1440, height: 1000 }, { width: 1920, height: 10
   })
 }
 
+for (const width of [1440, 1920, 390]) {
+  test(`sticky header remains visible and clears navigation targets at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 })
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    await page.goto('/')
+    await page.evaluate(() => window.scrollTo(0, 900))
+    const header = page.locator('.site-header')
+    expect(await header.evaluate(element => {
+      const bounds = element.getBoundingClientRect()
+      return bounds.left === 0 && Math.abs(bounds.right - document.documentElement.clientWidth) < 1
+    })).toBe(true)
+    await expect.poll(() => header.evaluate(element => element.getBoundingClientRect().top)).toBe(0)
+    await expect(header).toHaveCSS('position', 'sticky')
+    await expect(header).not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
+    if (width < 760) await page.getByRole('button', { name: 'Open menu' }).click()
+    await page.getByRole('navigation').getByRole('link', { name: /My journey/ }).click()
+    await expect(page).toHaveURL(/#journey$/)
+    await expect.poll(() => page.locator('#journey').evaluate(element => Math.round(element.getBoundingClientRect().top))).toBeGreaterThanOrEqual(width < 760 ? 88 : 104)
+    await expect.poll(() => header.evaluate(element => element.getBoundingClientRect().top)).toBe(0)
+    if (width < 760) await expect(page.getByRole('button', { name: 'Open menu' })).toHaveAttribute('aria-expanded', 'false')
+  })
+}
+
 test('mobile menu navigates and closes', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await page.goto('/')
